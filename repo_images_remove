@@ -1,0 +1,60 @@
+import requests
+import json
+from datetime import datetime, timedelta,date
+import subprocess
+"""
+某一项目下最近6个月之内，如果迭代的镜像次数
+超过12次，则删除6个月之前的镜像
+"""
+
+#repo base url
+reporul = 'http://registry/api/repositories'
+#repo auth
+auth = ''
+passwd = ''
+#获取时间线
+last_day_of_prev_day = str(date.today() - timedelta(days=180))
+projectname = ''
+appname = ''
+
+def get_pro_items():
+    #repo base url
+    items_list = []
+    reporul = 'http://registry/api/repositories?project_id='
+    for num in range(1,20):
+        response = requests.get(reporul + str(num),auth=(auth,passwd))
+        result_data = json.loads(response.text)
+        for items in result_data:
+            if items['tags_count'] > 60:
+                items_list.append(items['name'])
+                print(items['name'],items['tags_count'])
+    print(items_list)
+
+get_pro_items()
+
+
+def remove_old_docker_image(projectnamem,appname):
+    response = requests.get(reporul + "/" + projectname + "/" +  appname  + "/tags",auth=(auth,passwd))
+    result_data = json.loads(response.text)
+    items_list = []
+
+    #获取时间线，以上的镜像列表
+    for items in result_data:
+        if  items['digest'] and items['created'] >  last_day_of_prev_day:
+            items_list.append(items)
+
+    #获取时间线，以下的镜像列表,移除
+    if len(items_list) > 12:
+        for items in result_data:
+            if  items['digest'] and items['created'] < last_day_of_prev_day:
+                print(items['name'],items['created'])
+                remove_tags = requests.delete( reporul + "/" + projectname + "/" +  appname  + "/tags" +  "/" + items['name'],auth=(auth,passwd))
+
+#remove_old_docker_image(projectname,appname)
+# subprocess.run(["/usr/local/release_space.sh"],shell=True)
+"""
+#/usr/local/release_space.sh
+#!/bin/bash
+image_name=$(docker ps | grep registry | grep photon | awk -F " " '{print $2}')
+docker run -it --name gc --rm --volumes-from registry ${image_name} garbage-collect  /etc/registry/config.yml
+"""
